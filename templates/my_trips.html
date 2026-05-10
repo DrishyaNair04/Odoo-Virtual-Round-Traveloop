@@ -1,0 +1,13 @@
+<!-- templates/my_trips.html -->
+{% extends "base.html" %}
+{% block title %}My Trips - Traveloop{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4"><h1><i class="fas fa-suitcase-rolling me-2"></i>My Trips</h1><a href="{{ url_for('create_trip') }}" class="btn btn-primary"><i class="fas fa-plus"></i> New Trip</a></div>
+<div class="row">
+    {% for trip in trips %}
+    <div class="col-md-6 col-lg-4 mb-4"><div class="card h-100"><div class="card-body"><h5 class="card-title">{{ trip.name }}</h5><p class="card-text text-muted small">{{ trip.description[:80] }}{% if trip.description|length > 80 %}...{% endif %}</p><div class="mb-2"><i class="far fa-calendar-alt"></i> {{ trip.start_date }} → {{ trip.end_date }}<br><i class="fas fa-map-marker-alt"></i> {{ trip.stop_count }} cities | <i class="fas fa-shopping-bag"></i> {{ trip.packing_count or 0 }} packing items</div><div><a href="{{ url_for('edit_trip', trip_id=trip.id) }}" class="btn btn-sm btn-outline-primary">Edit</a> <a href="{{ url_for('itinerary_view', trip_id=trip.id) }}" class="btn btn-sm btn-outline-info">View</a> <a href="{{ url_for('budget_view', trip_id=trip.id) }}" class="btn btn-sm btn-outline-success">Budget</a></div></div><div class="card-footer bg-transparent"><small class="text-muted">Created: {{ trip.created_at[:10] }}</small></div></div></div>
+    {% else %}
+    <div class="col-12"><div class="alert alert-info text-center">You haven't created any trips yet. <a href="{{ url_for('create_trip') }}" class="alert-link">Plan your first adventure!</a></div></div>
+    {% endfor %}
+</div>
+{% endblock %}
