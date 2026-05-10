@@ -1,0 +1,217 @@
+<!-- templates/budget.html -->
+{% extends "base.html" %}
+{% block title %}Budget - {{ trip.name }}{% endblock %}
+{% block extra_css %}
+<style>
+    .budget-card {
+        transition: transform 0.2s;
+    }
+    .budget-card:hover {
+        transform: translateY(-5px);
+    }
+    .alert-warning {
+        background-color: #fff3cd;
+        border-left: 4px solid #ffc107;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div>
+    <a href="{{ url_for('edit_trip', trip_id=trip.id) }}" class="btn btn-outline-secondary mb-3">
+        <i class="fas fa-arrow-left"></i> Back to Trip
+    </a>
+    <h2><i class="fas fa-chart-pie me-2"></i>Budget Breakdown: {{ trip.name }}</h2>
+    <p class="text-muted">{{ trip.start_date }} to {{ trip.end_date }} ({{ trip_days }} days)</p>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card p-3 mb-3 budget-card">
+            <canvas id="costChart" height="250"></canvas>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card p-3 budget-card">
+            <h5><i class="fas fa-calculator me-2"></i>Cost Summary</h5>
+            <table class="table table-hover">
+                <tr>
+                    <td><i class="fas fa-hotel me-2"></i>🏨 Stay ({{ trip_days }} nights)</td>
+                    <td class="text-end">${{ "%.2f"|format(total_stay) }}</td>
+                </tr>
+                <tr>
+                    <td><i class="fas fa-utensils me-2"></i>🍽️ Meals</td>
+                    <td class="text-end">${{ "%.2f"|format(total_meals) }}</td>
+                </tr>
+                <tr>
+                    <td><i class="fas fa-ticket-alt me-2"></i>🎯 Activities</td>
+                    <td class="text-end">${{ "%.2f"|format(total_activities) }}</td>
+                </tr>
+                <tr>
+                    <td><i class="fas fa-car me-2"></i>🚗 Transport</td>
+                    <td class="text-end">${{ "%.2f"|format(transport) }}</td>
+                </tr>
+                <tr class="fw-bold border-top">
+                    <td><i class="fas fa-chart-line me-2"></i>Total Estimated</td>
+                    <td class="text-end">${{ "%.2f"|format(total_cost) }}</td>
+                </tr>
+            </table>
+            
+            <div class="alert alert-info mt-2">
+                <i class="fas fa-chart-line me-2"></i> 
+                Average per day: <strong>${{ "%.2f"|format(avg_per_day) }}</strong>
+            </div>
+            
+            {% if over_budget_days and over_budget_days|length > 0 %}
+            <div class="alert alert-warning">
+                <i class="fas fa-exclamation-triangle me-2"></i> 
+                <strong>Alert:</strong> High spending on {{ over_budget_days|length }} day(s)
+                <ul class="mt-2 mb-0">
+                    {% for day in over_budget_days %}
+                    <li>{{ day.date }}: ${{ "%.2f"|format(day.amount) }} spent (over ${{ "%.2f"|format(day.budget) }} budget)</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="card mt-4 p-3 budget-card">
+    <h5><i class="fas fa-city me-2"></i>Per-City Breakdown</h5>
+    <div class="row">
+        {% for stop in stop_breakdown %}
+        <div class="col-md-4 mb-3">
+            <div class="p-3 border rounded h-100">
+                <strong><i class="fas fa-map-marker-alt me-1"></i> {{ stop.city }}</strong>
+                <hr class="my-2">
+                <div class="small">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span>🎯 Activities:</span>
+                        <span class="fw-bold">${{ "%.2f"|format(stop.activities) }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1">
+                        <span>🏨 Stay:</span>
+                        <span class="fw-bold">${{ "%.2f"|format(stop.stay) }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1">
+                        <span>🍽️ Meals:</span>
+                        <span class="fw-bold">${{ "%.2f"|format(stop.meals) }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1">
+                        <span>🚗 Transport:</span>
+                        <span class="fw-bold">${{ "%.2f"|format(stop.transport) }}</span>
+                    </div>
+                    <hr class="my-2">
+                    <div class="d-flex justify-content-between fw-bold">
+                        <span>Total:</span>
+                        <span class="text-primary">${{ "%.2f"|format(stop.total) }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="col-12">
+            <div class="alert alert-info">No city breakdown available. Add some stops to see budget distribution.</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+{% if budget_tips %}
+<div class="card mt-4 p-3 budget-card">
+    <h5><i class="fas fa-lightbulb me-2"></i>Budget Tips</h5>
+    <ul class="mb-0">
+        {% for tip in budget_tips %}
+        <li class="mb-2">{{ tip }}</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Safely get the canvas context
+    const canvas = document.getElementById('costChart');
+    if (canvas) {
+        // Parse values as floats to ensure proper number handling
+        const totalStay = parseFloat('{{ total_stay|default(0) }}');
+        const totalMeals = parseFloat('{{ total_meals|default(0) }}');
+        const totalActivities = parseFloat('{{ total_activities|default(0) }}');
+        const transport = parseFloat('{{ transport|default(0) }}');
+        
+        // Filter out zero values for better pie chart appearance
+        const labels = [];
+        const data = [];
+        const colors = [];
+        
+        if (totalStay > 0) {
+            labels.push('Stay');
+            data.push(totalStay);
+            colors.push('#2c3e50');
+        }
+        if (totalMeals > 0) {
+            labels.push('Meals');
+            data.push(totalMeals);
+            colors.push('#3498db');
+        }
+        if (totalActivities > 0) {
+            labels.push('Activities');
+            data.push(totalActivities);
+            colors.push('#e67e22');
+        }
+        if (transport > 0) {
+            labels.push('Transport');
+            data.push(transport);
+            colors.push('#95a5a6');
+        }
+        
+        // If all values are zero, show a placeholder
+        if (data.length === 0) {
+            labels.push('No Data');
+            data.push(1);
+            colors.push('#ecf0f1');
+        }
+        
+        new Chart(canvas, {
+            type: 'pie',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: data,
+                    backgroundColor: colors,
+                    borderWidth: 2,
+                    borderColor: '#fff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            font: {
+                                size: 12
+                            }
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const label = context.label || '';
+                                const value = context.raw || 0;
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = ((value / total) * 100).toFixed(1);
+                                return `${label}: $${value.toFixed(2)} (${percentage}%)`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+});
+</script>
+{% endblock %}
