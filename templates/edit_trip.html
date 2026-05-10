@@ -1,0 +1,435 @@
+<!-- templates/edit_trip.html -->
+{% extends "base.html" %}
+{% block title %}Plan Your Trip - Traveloop{% endblock %}
+{% block extra_css %}
+<style>
+.stop-card { 
+    background: #f8fafc; 
+    border-radius: 1rem; 
+    padding: 1rem; 
+    margin-bottom: 1.5rem; 
+    border-left: 5px solid #3498db; 
+}
+.activity-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem;
+    border-bottom: 1px solid #e0e0e0;
+}
+.activity-row:last-child {
+    border-bottom: none;
+}
+</style>
+{% endblock %}
+{% block content %}
+<div>
+    <a href="{{ url_for('my_trips') }}" class="btn btn-outline-secondary mb-3">
+        <i class="fas fa-arrow-left"></i> Back to Trips
+    </a>
+    <h2>{{ trip.name }} 
+        <small class="text-muted fs-6">({{ trip.start_date }} - {{ trip.end_date }})</small>
+    </h2>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <h4><i class="fas fa-city me-2"></i>Your Stops & Activities</h4>
+        
+        {% for stop in stops %}
+        <div class="stop-card" data-stop-id="{{ stop.id }}">
+            <div class="d-flex justify-content-between">
+                <h5>{{ stop.city_name }} <span class="badge bg-secondary">{{ stop.country }}</span></h5>
+                <button class="btn btn-sm btn-danger delete-stop" data-id="{{ stop.id }}">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+            <div>
+                <small><i class="far fa-calendar-alt"></i> {{ stop.start_date }} → {{ stop.end_date }}</small>
+            </div>
+            <hr>
+            <h6>Activities in {{ stop.city_name }}</h6>
+            <div class="mb-2">
+                {% for act in stop.activities %}
+                <div class="activity-row">
+                    <div>
+                        <strong>{{ act.name }}</strong><br>
+                        <small class="text-muted">{{ act.activity_type }} • {{ act.duration_hours }}h • ${{ "%.0f"|format(act.cost) }}</small>
+                    </div>
+                    <div>
+                        <span class="badge bg-info">{{ act.time_of_day or 'Flexible' }}</span>
+                    </div>
+                </div>
+                {% else %}
+                <p class="text-muted small">No activities added yet.</p>
+                {% endfor %}
+            </div>
+            <button class="btn btn-sm btn-primary add-activity-btn mt-2" data-stop-id="{{ stop.id }}">
+                <i class="fas fa-plus"></i> Add Activity
+            </button>
+        </div>
+        {% else %}
+        <div class="alert alert-info">No stops added yet. Use the search panel to add cities to your trip.</div>
+        {% endfor %}
+    </div>
+
+    <div class="col-md-4">
+        <div class="card p-3 sticky-top" style="top: 80px;">
+            <h5><i class="fas fa-search"></i> Add a City</h5>
+            <input type="text" id="citySearch" class="form-control" placeholder="Search city...">
+            <div id="cityResults" class="mt-3 list-group"></div>
+            <hr>
+            <h5>Trip Summary</h5>
+            <p><strong>Duration:</strong> {{ trip_days }} days</p>
+            <p><strong>Total Stops:</strong> {{ stops|length }}</p>
+            <a href="{{ url_for('itinerary_view', trip_id=trip.id) }}" class="btn btn-outline-primary w-100 mb-2">View Itinerary</a>
+            <a href="{{ url_for('budget_view', trip_id=trip.id) }}" class="btn btn-outline-success w-100">View Budget</a>
+        </div>
+    </div>
+</div>
+
+<!-- Add Activity Modal -->
+<div class="modal fade" id="activityModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add Activity</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="activityForm">
+                    <input type="hidden" id="activityStopId">
+                    <div class="mb-2">
+                        <label>Activity Name</label>
+                        <input type="text" id="actName" class="form-control" required>
+                    </div>
+                    <div class="mb-2">
+                        <label>Type</label>
+                        <select id="actType" class="form-select">
+                            <option>Sightseeing</option>
+                            <option>Food</option>
+                            <option>Adventure</option>
+                            <option>Museum</option>
+                            <option>Other</option>
+                        </select>
+                    </div>
+                    <div class="row">
+                        <div class="col-6 mb-2">
+                            <label>Cost ($)</label>
+                            <input type="number" id="actCost" class="form-control" value="0" step="0.01">
+                        </div>
+                        <div class="col-6 mb-2">
+                            <label>Duration (hrs)</label>
+                            <input type="number" id="actDuration" class="form-control" value="2" step="0.5">
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label>Date</label>
+                        <input type="date" id="actDate" class="form-control" required>
+                    </div>
+                    <div class="mb-2">
+                        <label>Time of Day</label>
+                        <select id="actTime" class="form-select">
+                            <option>Morning</option>
+                            <option>Afternoon</option>
+                            <option>Evening</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveActivityBtn">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add City Modal (Better UX than prompts) -->
+<div class="modal fade" id="addCityModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add City to Trip</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addCityForm">
+                    <input type="hidden" id="selectedCityName">
+                    <input type="hidden" id="selectedCityCountry">
+                    <input type="hidden" id="selectedCityCost">
+                    
+                    <div class="mb-3">
+                        <p><strong id="selectedCityDisplay"></strong></p>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Start Date <span class="text-danger">*</span></label>
+                            <input type="date" id="cityStartDate" class="form-control" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">End Date <span class="text-danger">*</span></label>
+                            <input type="date" id="cityEndDate" class="form-control" required>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="confirmAddCityBtn">Add to Trip</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ✅ FIX #1: Extract trip_id from URL properly
+const tripId = {{ trip.id }};
+console.log('Trip ID:', tripId);
+
+// Calculate trip duration
+let tripStartDate = new Date('{{ trip.start_date }}');
+let tripEndDate = new Date('{{ trip.end_date }}');
+let tripDays = Math.ceil((tripEndDate - tripStartDate) / (1000 * 60 * 60 * 24));
+if (tripDays < 0) tripDays = 0;
+
+// ✅ FIX #2: City search with better error handling
+let searchTimeout;
+document.getElementById('citySearch')?.addEventListener('input', function() {
+    clearTimeout(searchTimeout);
+    let q = this.value.trim();
+    
+    if(q.length < 2) {
+        document.getElementById('cityResults').innerHTML = '';
+        return;
+    }
+    
+    searchTimeout = setTimeout(() => {
+        console.log('Searching for:', q);
+        fetch('/api/search_cities?q=' + encodeURIComponent(q))
+            .then(r => {
+                if (!r.ok) {
+                    throw new Error(`HTTP error! status: ${r.status}`);
+                }
+                return r.json();
+            })
+            .then(cities => {
+                console.log('Search results:', cities);
+                if (!cities || cities.length === 0) {
+                    document.getElementById('cityResults').innerHTML = '<div class="text-muted p-2">No cities found</div>';
+                    return;
+                }
+                
+                let html = ''; 
+                cities.forEach(c => { 
+                    html += `<a href="#" class="list-group-item list-group-item-action add-city-btn" 
+                        data-name="${c.city_name}" 
+                        data-country="${c.country}" 
+                        data-cost="${c.cost_index}">
+                        <strong>${c.city_name}</strong>, ${c.country} 
+                        <span class="badge bg-secondary">$${c.cost_index}</span>
+                    </a>`; 
+                }); 
+                document.getElementById('cityResults').innerHTML = html;
+                
+                // Attach event listeners to new elements
+                attachAddCityListeners();
+            })
+            .catch(error => {
+                console.error('Search error:', error);
+                document.getElementById('cityResults').innerHTML = '<div class="alert alert-danger alert-sm mb-0">Error searching cities</div>';
+            });
+    }, 300);
+});
+
+// ✅ FIX #3: Function to attach event listeners dynamically
+function attachAddCityListeners() {
+    document.querySelectorAll('.add-city-btn').forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            let cityName = link.dataset.name;
+            let country = link.dataset.country;
+            let cost = link.dataset.cost;
+            
+            // Show modal instead of prompts
+            document.getElementById('selectedCityName').value = cityName;
+            document.getElementById('selectedCityCountry').value = country;
+            document.getElementById('selectedCityCost').value = cost;
+            document.getElementById('selectedCityDisplay').textContent = `${cityName}, ${country}`;
+            
+            // Set default dates (trip start and end dates)
+            document.getElementById('cityStartDate').value = '{{ trip.start_date }}';
+            document.getElementById('cityEndDate').value = '{{ trip.end_date }}';
+            
+            // Set min/max dates
+            document.getElementById('cityStartDate').min = '{{ trip.start_date }}';
+            document.getElementById('cityStartDate').max = '{{ trip.end_date }}';
+            document.getElementById('cityEndDate').min = '{{ trip.start_date }}';
+            document.getElementById('cityEndDate').max = '{{ trip.end_date }}';
+            
+            new bootstrap.Modal(document.getElementById('addCityModal')).show();
+        });
+    });
+}
+
+// ✅ FIX #4: Confirm add city with proper validation
+document.getElementById('confirmAddCityBtn')?.addEventListener('click', () => {
+    const startDate = document.getElementById('cityStartDate').value;
+    const endDate = document.getElementById('cityEndDate').value;
+    const cityName = document.getElementById('selectedCityName').value;
+    const country = document.getElementById('selectedCityCountry').value;
+    const cost = document.getElementById('selectedCityCost').value;
+    
+    // Validation
+    if (!startDate || !endDate) {
+        alert('Please select both start and end dates');
+        return;
+    }
+    
+    if (new Date(startDate) > new Date(endDate)) {
+        alert('Start date must be before end date');
+        return;
+    }
+    
+    console.log('Adding stop:', {
+        trip_id: tripId,
+        city_name: cityName,
+        country: country,
+        cost_index: parseFloat(cost),
+        start_date: startDate,
+        end_date: endDate
+    });
+    
+    // ✅ FIX #5: Correct API call with proper error handling
+    fetch('/api/add_stop', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({
+            trip_id: tripId,
+            city_name: cityName,
+            country: country,
+            cost_index: parseFloat(cost),
+            start_date: startDate,
+            end_date: endDate
+        })
+    })
+    .then(r => {
+        console.log('Response status:', r.status);
+        if (!r.ok) {
+            return r.json().then(error => {
+                throw new Error(error.error || `HTTP error! status: ${r.status}`);
+            });
+        }
+        return r.json();
+    })
+    .then(data => {
+        console.log('Stop added:', data);
+        alert('City added successfully!');
+        location.reload();
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error adding city: ' + error.message);
+    });
+});
+
+// Delete stop with confirmation
+document.querySelectorAll('.delete-stop').forEach(btn => { 
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if(confirm('Are you sure you want to remove this city from your trip?')) {
+            fetch('/api/stop/' + btn.dataset.id, {
+                method: 'DELETE',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(r => {
+                if (!r.ok) throw new Error(`HTTP error! status: ${r.status}`);
+                return r.json();
+            })
+            .then(() => {
+                alert('City removed from trip');
+                location.reload();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error deleting stop: ' + error.message);
+            });
+        }
+    }); 
+});
+
+// Add activity
+let currentStop = null; 
+document.querySelectorAll('.add-activity-btn').forEach(btn => { 
+    btn.addEventListener('click', () => { 
+        currentStop = btn.dataset.stopId; 
+        document.getElementById('activityStopId').value = currentStop; 
+        document.getElementById('actDate').value = '{{ trip.start_date }}'; 
+        
+        // Clear form
+        document.getElementById('actName').value = '';
+        document.getElementById('actType').value = 'Sightseeing';
+        document.getElementById('actCost').value = '0';
+        document.getElementById('actDuration').value = '2';
+        document.getElementById('actTime').value = 'Morning';
+        
+        new bootstrap.Modal(document.getElementById('activityModal')).show(); 
+    }); 
+});
+
+// Save activity
+document.getElementById('saveActivityBtn')?.addEventListener('click', () => { 
+    const activityData = {
+        stop_id: document.getElementById('activityStopId').value,
+        name: document.getElementById('actName').value,
+        activity_type: document.getElementById('actType').value,
+        cost: parseFloat(document.getElementById('actCost').value) || 0,
+        duration_hours: parseFloat(document.getElementById('actDuration').value) || 2,
+        activity_date: document.getElementById('actDate').value,
+        time_of_day: document.getElementById('actTime').value
+    };
+    
+    if (!activityData.name.trim()) {
+        alert('Please enter an activity name');
+        return;
+    }
+    
+    console.log('Adding activity:', activityData);
+    
+    fetch('/api/add_activity', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify(activityData)
+    })
+    .then(r => {
+        if (!r.ok) throw new Error(`HTTP error! status: ${r.status}`);
+        return r.json();
+    })
+    .then(data => {
+        console.log('Activity added:', data);
+        alert('Activity added successfully!');
+        location.reload();
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error adding activity: ' + error.message);
+    });
+});
+
+// Initialize on DOM ready
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Page loaded. Trip ID:', tripId);
+});
+</script>
+{% endblock %}
