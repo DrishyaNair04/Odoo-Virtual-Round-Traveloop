@@ -1,0 +1,7 @@
+<!-- templates/share.html -->
+{% extends "base.html" %}
+{% block title %}Share Trip - {{ trip.name }}{% endblock %}
+{% block content %}
+<div class="row justify-content-center"><div class="col-md-6"><div class="card text-center p-4"><i class="fas fa-share-alt fa-3x mb-3" style="color:#3498db"></i><h3>Share Your Itinerary</h3><p>Make your trip public and share the link with friends</p>{% if not trip.is_public %}<a href="?make_public=1" class="btn btn-primary mb-3">Make Public & Get Link</a>{% else %}<div class="input-group mb-3"><input type="text" class="form-control" id="publicUrl" value="{{ public_url }}" readonly><button class="btn btn-secondary" onclick="copyUrl()">Copy Link</button></div><div class="mt-3"><a href="{{ public_url }}" target="_blank" class="btn btn-outline-primary">Preview Public Page</a><button class="btn btn-outline-secondary ms-2" onclick="shareSocial()"><i class="fab fa-twitter"></i> Share</button></div>{% endif %}<hr><div class="mt-3"><small class="text-muted">Public itineraries are read-only and can be copied by other users.</small></div></div></div></div>
+<script>function copyUrl(){ let url=document.getElementById('publicUrl'); url.select(); document.execCommand('copy'); alert('Link copied!'); } function shareSocial(){ window.open(`https://twitter.com/intent/tweet?text=Check out my travel plan: {{ public_url }}`); }</script>
+{% endblock %}
