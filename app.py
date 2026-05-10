@@ -492,221 +492,120 @@ def itinerary_view(trip_id):
     
     return render_template('itinerary.html', trip=trip, stops=stops, days=days)
 
+```python
 @app.route('/trips/<int:trip_id>/budget')
 @login_required
 def budget_view(trip_id):
-
     db = get_db()
 
     trip = db.execute(
-        """
-        SELECT *
-        FROM trips
-        WHERE id = ? AND user_id = ?
-        """,
+        "SELECT * FROM trips WHERE id = ? AND user_id = ?",
         (trip_id, session['user_id'])
     ).fetchone()
 
     if not trip:
         abort(404)
 
-    # GET STOPS
     stops = db.execute(
-        """
-        SELECT *
-        FROM stops
-        WHERE trip_id = ?
-        """,
+        "SELECT * FROM stops WHERE trip_id = ? ORDER BY start_date",
         (trip_id,)
     ).fetchall()
 
-    # CALCULATE TRIP DAYS
-    start = datetime.strptime(
-        trip['start_date'],
-        '%Y-%m-%d'
-    )
-
-    end = datetime.strptime(
-        trip['end_date'],
-        '%Y-%m-%d'
-    )
-
-    trip_days = (end - start).days + 1
-
-    if trip_days < 1:
-        trip_days = 1
-
-    # BASE COSTS
-    stay_cost_per_day = 150
-    meal_cost_per_day = 50
-    transport = 200
-
-    total_stay = trip_days * stay_cost_per_day
-    total_meals = trip_days * meal_cost_per_day
-
-    # ACTIVITIES TOTAL
-    total_activities = 0
-
     stop_breakdown = []
+
+    total_stay = 0
+    total_meals = 0
+    total_activities = 0
+    transport = 0
 
     for stop in stops:
 
-        activity_result = db.execute(
-            """
-            SELECT SUM(cost) as total
-            FROM activities
-            WHERE stop_id = ?
-            """,
+        activities_data = db.execute(
+            "SELECT SUM(cost) as total FROM activities WHERE stop_id = ?",
             (stop['id'],)
         ).fetchone()
 
-        activity_cost = activity_result['total'] or 0
+        activity_cost = activities_data['total'] or 0
 
-        total_activities += activity_cost
-
-        stop_start = datetime.strptime(
+        days = date_diff_in_days(
             stop['start_date'],
-            '%Y-%m-%d'
+            stop['end_date']
+        ) + 1
+
+        stay_cost = days * 100
+        meals_cost = days * 40
+        transport_cost = 50
+
+        city_total = (
+            stay_cost +
+            meals_cost +
+            transport_cost +
+            activity_cost
         )
-
-        stop_end = datetime.strptime(
-            stop['end_date'],
-            '%Y-%m-%d'
-        )
-
-        stop_days = (stop_end - stop_start).days + 1
-
-        stay = stop_days * stay_cost_per_day
-        meals = stop_days * meal_cost_per_day
 
         stop_breakdown.append({
-
             'city': stop['city_name'],
-
             'activities': activity_cost,
-
-            'stay': stay,
-
-            'meals': meals,
-
-            'transport': transport / max(len(stops), 1),
-
-            'total': (
-                activity_cost
-                + stay
-                + meals
-                + (transport / max(len(stops), 1))
-            )
-
+            'stay': stay_cost,
+            'meals': meals_cost,
+            'transport': transport_cost,
+            'total': city_total
         })
 
-    # FINAL TOTALS
+        total_stay += stay_cost
+        total_meals += meals_cost
+        total_activities += activity_cost
+        transport += transport_cost
+
     total_cost = (
-        total_stay
-        + total_meals
-        + total_activities
-        + transport
+        total_stay +
+        total_meals +
+        total_activities +
+        transport
     )
 
-    avg_per_day = total_cost / trip_days
+    trip_days = date_diff_in_days(
+        trip['start_date'],
+        trip['end_date']
+    ) + 1
 
-    # OVER BUDGET DAYS
-    over_budget_days = []
+    avg_per_day = total_cost / trip_days if trip_days > 0 else 0
 
-    current_date = start
-
-    while current_date <= end:
-
-        date_str = current_date.strftime('%Y-%m-%d')
-
-        daily_cost = meal_cost_per_day + stay_cost_per_day
-
-        for stop in stops:
-
-            stop_start = datetime.strptime(
-                stop['start_date'],
-                '%Y-%m-%d'
-            ).date()
-
-            stop_end = datetime.strptime(
-                stop['end_date'],
-                '%Y-%m-%d'
-            ).date()
-
-            if stop_start <= current_date.date() <= stop_end:
-
-                activity_day = db.execute(
-                    """
-                    SELECT SUM(cost) as total
-                    FROM activities
-                    WHERE stop_id = ?
-                    AND activity_date = ?
-                    """,
-                    (stop['id'], date_str)
-                ).fetchone()
-
-                daily_cost += (
-                    activity_day['total'] or 0
-                )
-
-        if daily_cost > 350:
-
-            over_budget_days.append({
-
-                'date': date_str,
-
-                'amount': daily_cost,
-
-                'budget': 350
-
-            })
-
-        current_date += timedelta(days=1)
-
-    # BUDGET TIPS
     budget_tips = []
 
-    if total_cost > 3000:
+    if avg_per_day > 300:
         budget_tips.append(
-            "Consider reducing luxury stays to lower costs."
+            "Consider cheaper hotels to reduce stay costs."
         )
 
-    if total_activities > 1000:
+    if total_activities > total_stay:
         budget_tips.append(
-            "Activities make up a large portion of your spending."
+            "Your activities budget is quite high."
         )
 
-    if trip_days > 10:
+    if transport > 200:
         budget_tips.append(
-            "Longer trips benefit from transport passes and hotel discounts."
+            "Use public transport to save money."
         )
+
+    over_budget_days = []
 
     return render_template(
-
         'budget.html',
-
         trip=trip,
-
         trip_days=trip_days,
-
         total_stay=total_stay,
-
         total_meals=total_meals,
-
         total_activities=total_activities,
-
         transport=transport,
-
         total_cost=total_cost,
-
         avg_per_day=avg_per_day,
-
         stop_breakdown=stop_breakdown,
-
-        over_budget_days=over_budget_days,
-
-        budget_tips=budget_tips
+        budget_tips=budget_tips,
+        over_budget_days=over_budget_days
     )
+```
+
 @app.route('/trips/<int:trip_id>/packing')
 @login_required
 def packing_view(trip_id):
