@@ -98,15 +98,24 @@ def init_db():
         )''')
         
         # Trip notes table
-        cursor.execute('''CREATE TABLE IF NOT EXISTS trip_notes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            trip_id INTEGER NOT NULL,
-            stop_id INTEGER,
-            note TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (trip_id) REFERENCES trips (id) ON DELETE CASCADE,
-            FOREIGN KEY (stop_id) REFERENCES stops (id) ON DELETE CASCADE
-        )''')
+        cursor.execute("""
+CREATE TABLE IF NOT EXISTS trip_notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    trip_id INTEGER NOT NULL,
+    stop_id INTEGER,
+    title TEXT,
+    note TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (trip_id)
+    REFERENCES trips(id)
+    ON DELETE CASCADE,
+
+    FOREIGN KEY (stop_id)
+    REFERENCES stops(id)
+    ON DELETE CASCADE
+)
+""")
         
         # Saved destinations for user
         cursor.execute('''CREATE TABLE IF NOT EXISTS saved_destinations (
@@ -702,19 +711,51 @@ def update_packing_item(item_id):
 @app.route('/trips/<int:trip_id>/notes')
 @login_required
 def notes_view(trip_id):
+
     db = get_db()
-    trip = db.execute("SELECT * FROM trips WHERE id = ? AND user_id = ?", (trip_id, session['user_id'])).fetchone()
+
+    trip = db.execute(
+        """
+        SELECT *
+        FROM trips
+        WHERE id = ? AND user_id = ?
+        """,
+        (trip_id, session['user_id'])
+    ).fetchone()
+
     if not trip:
         abort(404)
-    
-    stops = db.execute("SELECT id, city_name FROM stops WHERE trip_id = ? ORDER BY order_index", (trip_id,)).fetchall()
-    notes = db.execute('''
-        SELECT n.*, s.city_name 
-        LEFT JOIN stops s ON n.stop_id = s.id 
-        WHERE n.trip_id = ? 
+
+    stops = db.execute(
+        """
+        SELECT id, city_name
+        FROM stops
+        WHERE trip_id = ?
+        ORDER BY order_index
+        """,
+        (trip_id,)
+    ).fetchall()
+
+    notes = db.execute(
+        """
+        SELECT
+            n.*,
+            s.city_name
+        FROM trip_notes n
+        LEFT JOIN stops s
+        ON n.stop_id = s.id
+        WHERE n.trip_id = ?
         ORDER BY n.created_at DESC
-    ''', (trip_id,)).fetchall()
-    return render_template('notes.html', trip=trip, notes=notes, stops=stops)
+        """,
+        (trip_id,)
+    ).fetchall()
+
+    return render_template(
+        'notes.html',
+        trip=trip,
+        notes=notes,
+        stops=stops
+    )
 
 @app.route('/api/notes/add', methods=['POST'])
 @login_required
@@ -725,12 +766,20 @@ def add_note():
     if not trip:
         return jsonify({'error': 'Unauthorized'}), 403
     cursor = db.execute('''
-        INSERT INTO trip_notes (trip_id, stop_id, note)
-        VALUES (?, ?, ?)
-    ''', (data['trip_id'], data.get('stop_id'), data['note']))
-    db.commit()
-    return jsonify({'id': cursor.lastrowid, 'message': 'Note added'})
-
+    INSERT INTO trip_notes (
+        trip_id,
+        stop_id,
+        title,
+        note
+    )
+    VALUES (?, ?, ?, ?)
+''', (
+    data['trip_id'],
+    data.get('stop_id'),
+    data.get('title'),
+    data['note']
+))
+    
 @app.route('/api/notes/<int:note_id>', methods=['DELETE'])
 @login_required
 def delete_note(note_id):
