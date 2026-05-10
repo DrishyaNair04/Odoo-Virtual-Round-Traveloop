@@ -760,26 +760,57 @@ def notes_view(trip_id):
 @app.route('/api/notes/add', methods=['POST'])
 @login_required
 def add_note():
+
     data = request.json
+
+    if not data:
+        return jsonify({
+            'error': 'Invalid request'
+        }), 400
+
     db = get_db()
-    trip = db.execute("SELECT id FROM trips WHERE id = ? AND user_id = ?", (data['trip_id'], session['user_id'])).fetchone()
+
+    trip = db.execute(
+        """
+        SELECT id
+        FROM trips
+        WHERE id = ? AND user_id = ?
+        """,
+        (
+            data['trip_id'],
+            session['user_id']
+        )
+    ).fetchone()
+
     if not trip:
-        return jsonify({'error': 'Unauthorized'}), 403
-    cursor = db.execute('''
-    INSERT INTO trip_notes (
-        trip_id,
-        stop_id,
-        title,
-        note
+        return jsonify({
+            'error': 'Unauthorized'
+        }), 403
+
+    cursor = db.execute(
+        """
+        INSERT INTO trip_notes (
+            trip_id,
+            stop_id,
+            title,
+            note
+        )
+        VALUES (?, ?, ?, ?)
+        """,
+        (
+            data['trip_id'],
+            data.get('stop_id'),
+            data.get('title'),
+            data['note']
+        )
     )
-    VALUES (?, ?, ?, ?)
-''', (
-    data['trip_id'],
-    data.get('stop_id'),
-    data.get('title'),
-    data['note']
-))
-    
+
+    db.commit()
+
+    return jsonify({
+        'id': cursor.lastrowid,
+        'message': 'Note added successfully'
+    })
 @app.route('/api/notes/<int:note_id>', methods=['DELETE'])
 @login_required
 def delete_note(note_id):
