@@ -1,0 +1,8 @@
+<!-- templates/itinerary.html -->
+{% extends "base.html" %}
+{% block title %}Itinerary - {{ trip.name }}{% endblock %}
+{% block content %}
+<div><a href="{{ url_for('edit_trip', trip_id=trip.id) }}" class="btn btn-outline-secondary mb-3"><i class="fas fa-arrow-left"></i> Back to Planning</a><h2><i class="fas fa-calendar-week me-2"></i>{{ trip.name }} - Full Itinerary</h2></div>
+<div class="card p-3 mb-4"><div class="d-flex justify-content-between align-items-center"><div><i class="fas fa-map-pin"></i> {{ stops|length }} cities • {{ days|length }} days</div><a href="{{ url_for('share_trip', trip_id=trip.id) }}" class="btn btn-sm btn-info"><i class="fas fa-share-alt"></i> Share Trip</a></div></div>
+<div class="row"><div class="col-md-8 mx-auto">{% for day in days %}<div class="card mb-3"><div class="card-header bg-white"><h5 class="mb-0"><i class="far fa-calendar-alt me-2"></i>{{ day.date }} {% if day.city %}<span class="badge bg-primary ms-2">{{ day.city }}</span>{% endif %}</h5></div><div class="card-body">{% if day.activities %}{% for act in day.activities %}<div class="d-flex justify-content-between align-items-start mb-2 pb-2 border-bottom"><div><strong>{{ act.name }}</strong><br><small class="text-muted">{{ act.activity_type }} • {{ act.duration_hours }}h</small></div><div><span class="badge bg-secondary">${{ "%.0f"|format(act.cost) }}</span> <span class="badge bg-info">{{ act.time_of_day }}</span></div></div>{% endfor %}{% else %}<p class="text-muted">No activities planned for this day.</p>{% endif %}</div></div>{% endfor %}</div></div>
+{% endblock %}
