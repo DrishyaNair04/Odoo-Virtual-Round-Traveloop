@@ -492,7 +492,7 @@ def itinerary_view(trip_id):
     
     return render_template('itinerary.html', trip=trip, stops=stops, days=days)
 
-```python
+
 @app.route('/trips/<int:trip_id>/budget')
 @login_required
 def budget_view(trip_id):
@@ -604,7 +604,6 @@ def budget_view(trip_id):
         budget_tips=budget_tips,
         over_budget_days=over_budget_days
     )
-```
 
 @app.route('/trips/<int:trip_id>/packing')
 @login_required
