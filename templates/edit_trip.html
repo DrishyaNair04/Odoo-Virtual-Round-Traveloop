@@ -82,8 +82,27 @@
             <h5>Trip Summary</h5>
             <p><strong>Duration:</strong> {{ trip_days }} days</p>
             <p><strong>Total Stops:</strong> {{ stops|length }}</p>
-            <a href="{{ url_for('itinerary_view', trip_id=trip.id) }}" class="btn btn-outline-primary w-100 mb-2">View Itinerary</a>
-            <a href="{{ url_for('budget_view', trip_id=trip.id) }}" class="btn btn-outline-success w-100">View Budget</a>
+            <a href="{{ url_for('itinerary_view', trip_id=trip.id) }}"
+   class="btn btn-outline-primary w-100 mb-2">
+
+    View Itinerary
+
+</a>
+
+<a href="{{ url_for('budget_view', trip_id=trip.id) }}"
+   class="btn btn-outline-success w-100 mb-2">
+
+    View Budget
+
+</a>
+
+<a href="{{ url_for('packing_view', trip_id=trip.id) }}"
+   class="btn btn-outline-dark w-100 mb-2">
+
+    <i class="fas fa-suitcase me-2"></i>
+    Packing List
+
+</a>
         </div>
     </div>
 </div>

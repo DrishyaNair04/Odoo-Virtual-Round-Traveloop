@@ -710,13 +710,49 @@ def budget_view(trip_id):
 @app.route('/trips/<int:trip_id>/packing')
 @login_required
 def packing_view(trip_id):
+
     db = get_db()
-    trip = db.execute("SELECT * FROM trips WHERE id = ? AND user_id = ?", (trip_id, session['user_id'])).fetchone()
+
+    trip = db.execute(
+        """
+        SELECT *
+        FROM trips
+        WHERE id = ? AND user_id = ?
+        """,
+        (trip_id, session['user_id'])
+    ).fetchone()
+
     if not trip:
         abort(404)
-    items = db.execute("SELECT * FROM packing_items WHERE trip_id = ?", (trip_id,)).fetchall()
-    return render_template('packing.html', trip=trip, items=items)
 
+    items = db.execute(
+        """
+        SELECT *
+        FROM packing_items
+        WHERE trip_id = ?
+        ORDER BY category, name
+        """,
+        (trip_id,)
+    ).fetchall()
+
+    # GROUP ITEMS BY CATEGORY
+    items_by_category = {}
+
+    for item in items:
+
+        category = item['category'] or 'Other'
+
+        if category not in items_by_category:
+            items_by_category[category] = []
+
+        items_by_category[category].append(item)
+
+    return render_template(
+        'packing.html',
+        trip=trip,
+        items=items,
+        items_by_category=items_by_category
+    )
 @app.route('/api/packing_item', methods=['POST'])
 @login_required
 def add_packing_item():
@@ -751,7 +787,17 @@ def update_packing_item(item_id):
     
     if request.method == 'PUT':
         data = request.json
-        db.execute("UPDATE packing_items SET is_packed = ? WHERE id = ?", (data['is_packed'], item_id))
+        db.execute("""
+    UPDATE packing_items
+    SET
+        name = ?,
+        category = ?
+    WHERE id = ?
+""", (
+    data['name'],
+    data['category'],
+    item_id
+))
         db.commit()
         return jsonify({'message': 'Updated'})
 

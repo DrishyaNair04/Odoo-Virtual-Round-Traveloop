@@ -277,7 +277,7 @@ function addItem() {
 
 // Toggle item packed status
 function toggleItem(itemId, isPacked) {
-    fetch('/api/packing/' + itemId + '/toggle', {
+    fetch('/api/packing_item/' + itemId + '/toggle', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_packed: isPacked })
@@ -296,7 +296,7 @@ function toggleItem(itemId, isPacked) {
 // Delete item
 function deleteItem(itemId) {
     if (confirm('Delete this item from your packing list?')) {
-        fetch('/api/packing/' + itemId, { method: 'DELETE' })
+        fetch('/api/packing_item/' + itemId, { method: 'DELETE' })
             .then(response => {
                 if (!response.ok) throw new Error('Network response was not ok');
                 return response.json();
