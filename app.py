@@ -1,4 +1,4 @@
-# app.py (fixed version)
+# app.py (FIXED VERSION)
 import os
 import sqlite3
 import hashlib
@@ -8,10 +8,7 @@ from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, abort, g
 
 app = Flask(__name__)
-app.secret_key = os.environ.get(
-    "SECRET_KEY",
-    secrets.token_hex(32)
-)
+app.secret_key = 'traveloop_secret_key_change_in_production'
 
 DATABASE = 'traveloop.db'
 
@@ -20,15 +17,11 @@ DATABASE = 'traveloop.db'
 # ---------------------------
 def get_db():
     db = getattr(g, '_database', None)
-
     if db is None:
         db = g._database = sqlite3.connect(DATABASE)
         db.row_factory = sqlite3.Row
-
-        # IMPORTANT
-        db.execute("PRAGMA foreign_keys = ON")
-
     return db
+
 @app.teardown_appcontext
 def close_connection(exception):
     db = getattr(g, '_database', None)
@@ -36,15 +29,12 @@ def close_connection(exception):
         db.close()
 
 def init_db():
-
     with app.app_context():
-
         db = get_db()
         cursor = db.cursor()
-
-        # USERS
-        cursor.execute("""
-        CREATE TABLE IF NOT EXISTS users (
+        
+        # Users table
+        cursor.execute('''CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
             email TEXT UNIQUE NOT NULL,
@@ -52,12 +42,10 @@ def init_db():
             photo TEXT,
             language TEXT DEFAULT 'en',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-        """)
-
-        # TRIPS
-        cursor.execute("""
-        CREATE TABLE IF NOT EXISTS trips (
+        )''')
+        
+        # Trips table
+        cursor.execute('''CREATE TABLE IF NOT EXISTS trips (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
             name TEXT NOT NULL,
@@ -67,16 +55,11 @@ def init_db():
             cover_photo TEXT,
             is_public BOOLEAN DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-            FOREIGN KEY (user_id)
-            REFERENCES users(id)
-            ON DELETE CASCADE
-        )
-        """)
-
-        # STOPS
-        cursor.execute("""
-        CREATE TABLE IF NOT EXISTS stops (
+            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+        )''')
+        
+        # Stops (cities) table
+        cursor.execute('''CREATE TABLE IF NOT EXISTS stops (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             trip_id INTEGER NOT NULL,
             city_name TEXT NOT NULL,
@@ -86,16 +69,11 @@ def init_db():
             start_date DATE NOT NULL,
             end_date DATE NOT NULL,
             order_index INTEGER DEFAULT 0,
-
-            FOREIGN KEY (trip_id)
-            REFERENCES trips(id)
-            ON DELETE CASCADE
-        )
-        """)
-
-        # ACTIVITIES
-        cursor.execute("""
-        CREATE TABLE IF NOT EXISTS activities (
+            FOREIGN KEY (trip_id) REFERENCES trips (id) ON DELETE CASCADE
+        )''')
+        
+        # Activities table
+        cursor.execute('''CREATE TABLE IF NOT EXISTS activities (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             stop_id INTEGER NOT NULL,
             name TEXT NOT NULL,
@@ -106,96 +84,64 @@ def init_db():
             activity_date DATE,
             time_of_day TEXT,
             image_url TEXT,
-
-            FOREIGN KEY (stop_id)
-            REFERENCES stops(id)
-            ON DELETE CASCADE
-        )
-        """)
-
-        # PACKING
-        cursor.execute("""
-        CREATE TABLE IF NOT EXISTS packing_items (
+            FOREIGN KEY (stop_id) REFERENCES stops (id) ON DELETE CASCADE
+        )''')
+        
+        # Packing items table
+        cursor.execute('''CREATE TABLE IF NOT EXISTS packing_items (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             trip_id INTEGER NOT NULL,
             name TEXT NOT NULL,
             category TEXT,
             is_packed BOOLEAN DEFAULT 0,
-
-            FOREIGN KEY (trip_id)
-            REFERENCES trips(id)
-            ON DELETE CASCADE
-        )
-        """)
-
-        # NOTES
-        cursor.execute("""
-        CREATE TABLE IF NOT EXISTS trip_notes (
+            FOREIGN KEY (trip_id) REFERENCES trips (id) ON DELETE CASCADE
+        )''')
+        
+        # Trip notes table
+        cursor.execute('''CREATE TABLE IF NOT EXISTS trip_notes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             trip_id INTEGER NOT NULL,
             stop_id INTEGER,
             note TEXT NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-            FOREIGN KEY (trip_id)
-            REFERENCES trips(id)
-            ON DELETE CASCADE,
-
-            FOREIGN KEY (stop_id)
-            REFERENCES stops(id)
-            ON DELETE CASCADE
-        )
-        """)
-
-        # SAVED DESTINATIONS
-        cursor.execute("""
-        CREATE TABLE IF NOT EXISTS saved_destinations (
+            FOREIGN KEY (trip_id) REFERENCES trips (id) ON DELETE CASCADE,
+            FOREIGN KEY (stop_id) REFERENCES stops (id) ON DELETE CASCADE
+        )''')
+        
+        # Saved destinations for user
+        cursor.execute('''CREATE TABLE IF NOT EXISTS saved_destinations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
             city_name TEXT NOT NULL,
             country TEXT,
-
-            UNIQUE(user_id, city_name),
-
-            FOREIGN KEY (user_id)
-            REFERENCES users(id)
-            ON DELETE CASCADE
-        )
-        """)
-
-        # CITY DIRECTORY
-        cursor.execute("""
-        CREATE TABLE IF NOT EXISTS city_directory (
+            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+        )''')
+        
+        # City directory for search
+        cursor.execute('''CREATE TABLE IF NOT EXISTS city_directory (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             city_name TEXT UNIQUE,
             country TEXT,
             cost_index INTEGER,
             popularity INTEGER
-        )
-        """)
-
-        # INSERT SAMPLE CITIES
+        )''')
+        
+        # Insert sample cities if empty
         cursor.execute("SELECT COUNT(*) FROM city_directory")
-
         if cursor.fetchone()[0] == 0:
-
             sample_cities = [
-                ('New York', 'USA', 5, 98),
-                ('Paris', 'France', 5, 99),
-                ('Tokyo', 'Japan', 4, 97),
-                ('London', 'UK', 5, 96),
-                ('Rome', 'Italy', 4, 95),
-                ('Bangkok', 'Thailand', 2, 93),
-                ('Dubai', 'UAE', 4, 91)
+                ('New York', 'USA', 5, 98), ('Paris', 'France', 5, 99), ('Tokyo', 'Japan', 4, 97),
+                ('London', 'UK', 5, 96), ('Rome', 'Italy', 4, 95), ('Barcelona', 'Spain', 3, 94),
+                ('Bangkok', 'Thailand', 2, 93), ('Istanbul', 'Turkey', 2, 92), ('Dubai', 'UAE', 4, 91),
+                ('Singapore', 'Singapore', 4, 90), ('Los Angeles', 'USA', 4, 89), ('Amsterdam', 'Netherlands', 4, 88),
+                ('Sydney', 'Australia', 4, 87), ('Berlin', 'Germany', 3, 86), ('Venice', 'Italy', 4, 85),
+                ('Kyoto', 'Japan', 3, 84), ('Prague', 'Czechia', 2, 83), ('Vienna', 'Austria', 3, 82)
             ]
-
-            cursor.executemany("""
-            INSERT INTO city_directory
-            (city_name, country, cost_index, popularity)
-            VALUES (?, ?, ?, ?)
-            """, sample_cities)
-
+            for city in sample_cities:
+                cursor.execute("INSERT OR IGNORE INTO city_directory (city_name, country, cost_index, popularity) VALUES (?, ?, ?, ?)", city)
+        
         db.commit()
+
 # ---------------------------
 # Authentication Helpers
 # ---------------------------
@@ -204,19 +150,8 @@ def hash_password(password):
     return hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100000).hex() + ':' + salt
 
 def verify_password(stored_password, provided_password):
-
-    try:
-        password_hash, salt = stored_password.split(':')
-
-    except ValueError:
-        return False
-
-    return password_hash == hashlib.pbkdf2_hmac(
-        'sha256',
-        provided_password.encode(),
-        salt.encode(),
-        100000
-    ).hex()
+    password_hash, salt = stored_password.split(':')
+    return password_hash == hashlib.pbkdf2_hmac('sha256', provided_password.encode(), salt.encode(), 100000).hex()
 
 def login_required(f):
     @wraps(f)
@@ -329,68 +264,25 @@ def my_trips():
         ORDER BY t.start_date DESC
     ''', (session['user_id'],)).fetchall()
     return render_template('my_trips.html', trips=trips)
+
 @app.route('/create_trip', methods=['GET', 'POST'])
 @login_required
 def create_trip():
-
     if request.method == 'POST':
-
         name = request.form['name']
         start_date = request.form['start_date']
         end_date = request.form['end_date']
-
         description = request.form.get('description', '')
         cover_photo = request.form.get('cover_photo', '')
-
-        # DATE VALIDATION
-        try:
-
-            start = datetime.strptime(start_date, '%Y-%m-%d')
-            end = datetime.strptime(end_date, '%Y-%m-%d')
-
-            if end < start:
-
-                return render_template(
-                    'create_trip.html',
-                    error="End date cannot be before start date"
-                )
-
-        except ValueError:
-
-            return render_template(
-                'create_trip.html',
-                error="Invalid date format"
-            )
-
+        
         db = get_db()
-
         cursor = db.execute('''
-            INSERT INTO trips (
-                user_id,
-                name,
-                description,
-                start_date,
-                end_date,
-                cover_photo
-            )
+            INSERT INTO trips (user_id, name, description, start_date, end_date, cover_photo)
             VALUES (?, ?, ?, ?, ?, ?)
-        ''', (
-            session['user_id'],
-            name,
-            description,
-            start_date,
-            end_date,
-            cover_photo
-        ))
-
+        ''', (session['user_id'], name, description, start_date, end_date, cover_photo))
         db.commit()
-
         trip_id = cursor.lastrowid
-
-        return redirect(
-            url_for('edit_trip', trip_id=trip_id)
-        )
-
+        return redirect(url_for('edit_trip', trip_id=trip_id))
     return render_template('create_trip.html')
 
 @app.route('/trips/<int:trip_id>/edit')
@@ -415,26 +307,123 @@ def edit_trip(trip_id):
     
     return render_template('edit_trip.html', trip=trip, stops=stops_with_activities, cities=cities)
 
+# ========== FIXED ROUTE ==========
 @app.route('/api/add_stop', methods=['POST'])
 @login_required
 def add_stop():
-    data = request.json
-    trip_id = data['trip_id']
-    db = get_db()
-    trip = db.execute("SELECT id FROM trips WHERE id = ? AND user_id = ?", (trip_id, session['user_id'])).fetchone()
-    if not trip:
-        return jsonify({'error': 'Trip not found'}), 404
+    """
+    Add a new stop (city) to a trip.
     
-    # Get max order_index
-    max_order = db.execute("SELECT COALESCE(MAX(order_index), -1) as max FROM stops WHERE trip_id = ?", (trip_id,)).fetchone()['max']
-    
-    cursor = db.execute('''
-        INSERT INTO stops (trip_id, city_name, country, cost_index, popularity, start_date, end_date, order_index)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (trip_id, data['city_name'], data.get('country', ''), data.get('cost_index', 3), 
-          data.get('popularity', 0), data['start_date'], data['end_date'], max_order + 1))
-    db.commit()
-    return jsonify({'id': cursor.lastrowid, 'message': 'Stop added'})
+    Expected JSON body:
+    {
+        "trip_id": integer,
+        "city_name": string,
+        "country": string (optional),
+        "cost_index": integer (optional, default 3),
+        "popularity": integer (optional, default 0),
+        "start_date": string (YYYY-MM-DD),
+        "end_date": string (YYYY-MM-DD)
+    }
+    """
+    try:
+        # Get JSON data from request
+        data = request.json
+        
+        # Validate that data exists
+        if not data:
+            return jsonify({'error': 'No data provided', 'success': False}), 400
+        
+        # Extract required fields
+        trip_id = data.get('trip_id')
+        city_name = data.get('city_name')
+        start_date = data.get('start_date')
+        end_date = data.get('end_date')
+        
+        # Validate all required fields are present
+        if not all([trip_id, city_name, start_date, end_date]):
+            missing_fields = []
+            if not trip_id:
+                missing_fields.append('trip_id')
+            if not city_name:
+                missing_fields.append('city_name')
+            if not start_date:
+                missing_fields.append('start_date')
+            if not end_date:
+                missing_fields.append('end_date')
+            
+            return jsonify({
+                'error': f'Missing required fields: {", ".join(missing_fields)}',
+                'success': False
+            }), 400
+        
+        # Verify trip exists and user owns it
+        db = get_db()
+        trip = db.execute(
+            "SELECT id FROM trips WHERE id = ? AND user_id = ?", 
+            (trip_id, session['user_id'])
+        ).fetchone()
+        
+        if not trip:
+            return jsonify({
+                'error': 'Trip not found or you do not have permission to edit this trip',
+                'success': False
+            }), 404
+        
+        # Get the maximum order_index to ensure proper ordering
+        max_order = db.execute(
+            "SELECT COALESCE(MAX(order_index), -1) as max FROM stops WHERE trip_id = ?", 
+            (trip_id,)
+        ).fetchone()['max']
+        
+        # Insert the new stop
+        cursor = db.execute('''
+            INSERT INTO stops (trip_id, city_name, country, cost_index, popularity, 
+                             start_date, end_date, order_index)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            trip_id,
+            city_name,
+            data.get('country', ''),
+            data.get('cost_index', 3),
+            data.get('popularity', 0),
+            start_date,
+            end_date,
+            max_order + 1
+        ))
+        
+        db.commit()
+        stop_id = cursor.lastrowid
+        
+        return jsonify({
+            'success': True,
+            'id': stop_id,
+            'message': f'Stop "{city_name}" added successfully',
+            'stop_data': {
+                'id': stop_id,
+                'city_name': city_name,
+                'country': data.get('country', ''),
+                'start_date': start_date,
+                'end_date': end_date
+            }
+        }), 201
+        
+    except KeyError as e:
+        return jsonify({
+            'error': f'Invalid data format: missing key {str(e)}',
+            'success': False
+        }), 400
+    except ValueError as e:
+        return jsonify({
+            'error': f'Invalid value: {str(e)}',
+            'success': False
+        }), 400
+    except Exception as e:
+        return jsonify({
+            'error': f'Server error: {str(e)}',
+            'success': False
+        }), 500
+
+# ========== END FIXED ROUTE ==========
 
 @app.route('/api/stop/<int:stop_id>', methods=['DELETE'])
 @login_required
@@ -510,133 +499,83 @@ def budget_view(trip_id):
     trip = db.execute("SELECT * FROM trips WHERE id = ? AND user_id = ?", (trip_id, session['user_id'])).fetchone()
     if not trip:
         abort(404)
+    stops = db.execute("SELECT * FROM stops WHERE trip_id = ? ORDER BY start_date", (trip_id,)).fetchall()
     
-    stops = db.execute("SELECT * FROM stops WHERE trip_id = ?", (trip_id,)).fetchall()
-    
-    total_activities_cost = 0
-    stop_breakdown = []
-    day_costs = {}
-    
-    # Calculate trip duration using julianday
-    start = datetime.strptime(trip['start_date'], '%Y-%m-%d')
-    end = datetime.strptime(trip['end_date'], '%Y-%m-%d')
-    trip_days = (end - start).days + 1
-    stay_cost_per_day = 150  # average hotel cost estimate
-    meal_cost_per_day = 50
-    transport_cost = 200  # estimated inter-city travel
-    
+    # Calculate costs per stop and total
+    stops_with_costs = []
+    total_cost = 0
     for stop in stops:
         activities = db.execute("SELECT SUM(cost) as total FROM activities WHERE stop_id = ?", (stop['id'],)).fetchone()
-        stop_cost = activities['total'] or 0
-        total_activities_cost += stop_cost
-        stop_start = datetime.strptime(stop['start_date'], '%Y-%m-%d')
-        stop_end = datetime.strptime(stop['end_date'], '%Y-%m-%d')
-        stay_days = (stop_end - stop_start).days + 1
-        stop_breakdown.append({
-            'city': stop['city_name'],
-            'activities': stop_cost,
-            'stay': stay_days * stay_cost_per_day,
-            'meals': stay_days * meal_cost_per_day,
-            'total': stop_cost + (stay_days * stay_cost_per_day) + (stay_days * meal_cost_per_day)
-        })
+        activity_cost = activities['total'] or 0
+        stay_cost = (date_diff_in_days(stop['start_date'], stop['end_date']) + 1) * 100
+        stop_dict = dict(stop)
+        stop_dict['activity_cost'] = activity_cost
+        stop_dict['stay_cost'] = stay_cost
+        stop_dict['total_cost'] = activity_cost + stay_cost
+        stops_with_costs.append(stop_dict)
+        total_cost += stop_dict['total_cost']
     
-    total_stay_cost = trip_days * stay_cost_per_day
-    total_meal_cost = trip_days * meal_cost_per_day
-    total_cost = total_activities_cost + total_stay_cost + total_meal_cost + transport_cost
-    avg_cost_per_day = total_cost / trip_days if trip_days > 0 else 0
-    
-    # Calculate daily costs for alerts
-    current_date = start
-    for i in range(trip_days):
-        day_str = current_date.strftime('%Y-%m-%d')
-        day_cost = meal_cost_per_day + stay_cost_per_day
-        for stop in stops:
-            stop_start = datetime.strptime(stop['start_date'], '%Y-%m-%d').date()
-            stop_end = datetime.strptime(stop['end_date'], '%Y-%m-%d').date()
-            if stop_start <= current_date.date() <= stop_end:
-                day_activities = db.execute("SELECT SUM(cost) as total FROM activities WHERE stop_id = ? AND activity_date = ?", 
-                                           (stop['id'], day_str)).fetchone()
-                day_cost += (day_activities['total'] or 0)
-                break
-        day_costs[day_str] = day_cost
-        current_date += timedelta(days=1)
-    
-    over_budget_days = [d for d, cost in day_costs.items() if cost > 350]  # alert threshold
-    
-    return render_template('budget.html', trip=trip, total_cost=total_cost, total_activities=total_activities_cost,
-                          total_stay=total_stay_cost, total_meals=total_meal_cost, transport=transport_cost,
-                          avg_per_day=avg_cost_per_day, stop_breakdown=stop_breakdown, over_budget_days=over_budget_days)
+    return render_template('budget.html', trip=trip, stops=stops_with_costs, total_cost=total_cost)
 
 @app.route('/trips/<int:trip_id>/packing')
 @login_required
-def packing_list(trip_id):
+def packing_view(trip_id):
     db = get_db()
     trip = db.execute("SELECT * FROM trips WHERE id = ? AND user_id = ?", (trip_id, session['user_id'])).fetchone()
     if not trip:
         abort(404)
-    items = db.execute("SELECT * FROM packing_items WHERE trip_id = ? ORDER BY category, name", (trip_id,)).fetchall()
+    items = db.execute("SELECT * FROM packing_items WHERE trip_id = ?", (trip_id,)).fetchall()
     return render_template('packing.html', trip=trip, items=items)
 
-@app.route('/api/packing/add', methods=['POST'])
+@app.route('/api/packing_item', methods=['POST'])
 @login_required
 def add_packing_item():
     data = request.json
+    trip_id = data['trip_id']
     db = get_db()
-    trip = db.execute("SELECT id FROM trips WHERE id = ? AND user_id = ?", (data['trip_id'], session['user_id'])).fetchone()
+    trip = db.execute("SELECT id FROM trips WHERE id = ? AND user_id = ?", (trip_id, session['user_id'])).fetchone()
     if not trip:
         return jsonify({'error': 'Unauthorized'}), 403
     cursor = db.execute('''
-        INSERT INTO packing_items (trip_id, name, category, is_packed)
-        VALUES (?, ?, ?, 0)
-    ''', (data['trip_id'], data['name'], data.get('category', 'Other')))
+        INSERT INTO packing_items (trip_id, name, category)
+        VALUES (?, ?, ?)
+    ''', (trip_id, data['name'], data.get('category', '')))
     db.commit()
     return jsonify({'id': cursor.lastrowid, 'message': 'Item added'})
 
-@app.route('/api/packing/<int:item_id>/toggle', methods=['POST'])
+@app.route('/api/packing_item/<int:item_id>', methods=['PUT', 'DELETE'])
 @login_required
-def toggle_packing(item_id):
+def update_packing_item(item_id):
     db = get_db()
     item = db.execute('''
-        SELECT pi.id, t.user_id FROM packing_items pi JOIN trips t ON pi.trip_id = t.id WHERE pi.id = ?
+        SELECT pi.id, t.user_id FROM packing_items pi 
+        JOIN trips t ON pi.trip_id = t.id WHERE pi.id = ?
     ''', (item_id,)).fetchone()
     if not item or item['user_id'] != session['user_id']:
         return jsonify({'error': 'Unauthorized'}), 403
-    db.execute("""
-    UPDATE packing_items
-    SET is_packed =
-        CASE
-            WHEN is_packed = 1 THEN 0
-            ELSE 1
-        END
-    WHERE id = ?
-""", (item_id,))
-    db.commit()
-    return jsonify({'message': 'Toggled'})
-
-@app.route('/api/packing/<int:item_id>', methods=['DELETE'])
-@login_required
-def delete_packing_item(item_id):
-    db = get_db()
-    item = db.execute('''
-        SELECT pi.id, t.user_id FROM packing_items pi JOIN trips t ON pi.trip_id = t.id WHERE pi.id = ?
-    ''', (item_id,)).fetchone()
-    if not item or item['user_id'] != session['user_id']:
-        return jsonify({'error': 'Unauthorized'}), 403
-    db.execute("DELETE FROM packing_items WHERE id = ?", (item_id,))
-    db.commit()
-    return jsonify({'message': 'Deleted'})
+    
+    if request.method == 'DELETE':
+        db.execute("DELETE FROM packing_items WHERE id = ?", (item_id,))
+        db.commit()
+        return jsonify({'message': 'Deleted'})
+    
+    if request.method == 'PUT':
+        data = request.json
+        db.execute("UPDATE packing_items SET is_packed = ? WHERE id = ?", (data['is_packed'], item_id))
+        db.commit()
+        return jsonify({'message': 'Updated'})
 
 @app.route('/trips/<int:trip_id>/notes')
 @login_required
-def trip_notes(trip_id):
+def notes_view(trip_id):
     db = get_db()
     trip = db.execute("SELECT * FROM trips WHERE id = ? AND user_id = ?", (trip_id, session['user_id'])).fetchone()
     if not trip:
         abort(404)
-    stops = db.execute("SELECT id, city_name FROM stops WHERE trip_id = ?", (trip_id,)).fetchall()
+    
+    stops = db.execute("SELECT id, city_name FROM stops WHERE trip_id = ? ORDER BY order_index", (trip_id,)).fetchall()
     notes = db.execute('''
         SELECT n.*, s.city_name 
-        FROM trip_notes n 
         LEFT JOIN stops s ON n.stop_id = s.id 
         WHERE n.trip_id = ? 
         ORDER BY n.created_at DESC
