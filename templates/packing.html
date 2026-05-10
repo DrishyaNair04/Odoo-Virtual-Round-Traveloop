@@ -1,0 +1,435 @@
+<!-- templates/packing.html -->
+{% extends "base.html" %}
+{% block title %}Packing List - {{ trip.name }}{% endblock %}
+{% block extra_css %}
+<style>
+    .packing-item {
+        transition: all 0.3s ease;
+    }
+    .packing-item:hover {
+        background-color: #f8f9fa;
+        transform: translateX(5px);
+    }
+    .category-badge {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+    }
+    .progress-bar-animated {
+        transition: width 0.5s ease;
+    }
+    .checklist-stats {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 10px;
+        padding: 15px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center flex-wrap mb-3">
+    <h2><i class="fas fa-suitcase me-2"></i>Packing List: {{ trip.name }}</h2>
+    <a href="{{ url_for('edit_trip', trip_id=trip.id) }}" class="btn btn-outline-secondary">
+        <i class="fas fa-arrow-left me-1"></i> Back to Trip
+    </a>
+</div>
+
+<div class="row mt-3">
+    <div class="col-md-6">
+        <!-- Add Item Form -->
+        <div class="card p-3 mb-3">
+            <h5><i class="fas fa-plus-circle me-2"></i>Add New Item</h5>
+            <div class="mb-3">
+                <label for="newItemName" class="form-label">Item Name</label>
+                <input type="text" id="newItemName" class="form-control" placeholder="e.g., Passport, Charger, Sunscreen...">
+            </div>
+            <div class="mb-3">
+                <label for="newItemCat" class="form-label">Category</label>
+                <select id="newItemCat" class="form-select">
+                    <option value="Clothing">👕 Clothing</option>
+                    <option value="Documents">📄 Documents</option>
+                    <option value="Electronics">📱 Electronics</option>
+                    <option value="Toiletries">🧴 Toiletries</option>
+                    <option value="Medical">💊 Medical</option>
+                    <option value="Other">📦 Other</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label for="newItemQuantity" class="form-label">Quantity</label>
+                <input type="number" id="newItemQuantity" class="form-control" value="1" min="1">
+            </div>
+            <button class="btn btn-primary" id="addItemBtn">
+                <i class="fas fa-plus me-1"></i> Add Item
+            </button>
+        </div>
+
+        <!-- Packing Items List -->
+        <div class="card p-3">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5><i class="fas fa-list-check me-2"></i>Packing Items</h5>
+                <button class="btn btn-sm btn-outline-danger" id="clearPackedBtn" title="Remove all packed items">
+                    <i class="fas fa-trash-alt"></i> Clear Packed
+                </button>
+            </div>
+            
+            <div id="packingList">
+                {% if items_by_category %}
+                    {% for category, category_items in items_by_category.items() %}
+                        <h6 class="mt-3 mb-2 text-muted">
+                            <i class="fas fa-tag me-1"></i> {{ category }}
+                            <span class="badge bg-secondary ms-2">{{ category_items|length }}</span>
+                        </h6>
+                        {% for item in category_items %}
+                        <div class="packing-item d-flex justify-content-between align-items-center p-2 border-bottom" data-item-id="{{ item.id }}">
+                            <div class="d-flex align-items-center">
+                                <input type="checkbox" class="packing-checkbox me-2" data-id="{{ item.id }}" {% if item.is_packed %}checked{% endif %}>
+                                <span {% if item.is_packed %}style="text-decoration: line-through; color: #6c757d;"{% endif %}>
+                                    {{ item.name }}
+                                    {% if item.quantity and item.quantity > 1 %}
+                                    <small class="text-muted">(x{{ item.quantity }})</small>
+                                    {% endif %}
+                                </span>
+                                <span class="badge bg-secondary category-badge ms-2">{{ item.category }}</span>
+                            </div>
+                            <div>
+                                <button class="btn btn-sm btn-link text-info edit-item me-1" data-id="{{ item.id }}" data-name="{{ item.name }}" data-category="{{ item.category }}" data-quantity="{{ item.quantity }}">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-sm btn-link text-danger delete-item" data-id="{{ item.id }}">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted text-center py-3">
+                        <i class="fas fa-box-open fa-2x d-block mb-2"></i>
+                        No items yet. Add some essentials for your trip!
+                    </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <!-- Statistics Card -->
+        <div class="checklist-stats mb-3">
+            <h5 class="text-white mb-3"><i class="fas fa-chart-simple me-2"></i>Packing Progress</h5>
+            <div class="mb-2">
+                <div class="d-flex justify-content-between mb-1">
+                    <span>Total Items:</span>
+                    <span><strong id="totalItems">0</strong></span>
+                </div>
+                <div class="d-flex justify-content-between mb-1">
+                    <span>Packed:</span>
+                    <span><strong id="packedItems">0</strong></span>
+                </div>
+                <div class="d-flex justify-content-between mb-1">
+                    <span>Remaining:</span>
+                    <span><strong id="remainingItems">0</strong></span>
+                </div>
+            </div>
+            <div class="progress mb-2" style="height: 25px;">
+                <div id="packingProgress" class="progress-bar progress-bar-striped progress-bar-animated" 
+                     role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                    0%
+                </div>
+            </div>
+        </div>
+
+        <!-- Packing Tips Card -->
+        <div class="card p-3 mb-3">
+            <h5><i class="fas fa-lightbulb me-2"></i>Packing Tips</h5>
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle me-2"></i>
+                <strong>Weather Alert:</strong> Check the forecast for {{ trip.destinations|join(', ') if trip.destinations else 'your destinations' }}
+            </div>
+            <ul class="mb-0">
+                <li class="mb-2">✅ Roll clothes to save space and reduce wrinkles</li>
+                <li class="mb-2">✅ Keep important documents in a separate waterproof pouch</li>
+                <li class="mb-2">✅ Pack a small first-aid kit with basic medications</li>
+                <li class="mb-2">✅ Research weather and cultural norms at your destinations</li>
+                <li class="mb-2">✅ Use packing cubes for better organization</li>
+                <li class="mb-2">✅ Leave some space for souvenirs</li>
+                <li class="mb-2">✅ Pack a portable charger for electronics</li>
+            </ul>
+        </div>
+
+        <!-- Category Quick Filter -->
+        <div class="card p-3">
+            <h5><i class="fas fa-filter me-2"></i>Filter by Category</h5>
+            <div class="btn-group w-100 mb-2" role="group">
+                <button class="btn btn-outline-secondary filter-btn active" data-category="all">All</button>
+                <button class="btn btn-outline-secondary filter-btn" data-category="Clothing">Clothing</button>
+                <button class="btn btn-outline-secondary filter-btn" data-category="Documents">Documents</button>
+            </div>
+            <div class="btn-group w-100" role="group">
+                <button class="btn btn-outline-secondary filter-btn" data-category="Electronics">Electronics</button>
+                <button class="btn btn-outline-secondary filter-btn" data-category="Toiletries">Toiletries</button>
+                <button class="btn btn-outline-secondary filter-btn" data-category="Medical">Medical</button>
+            </div>
+        </div>
+
+        <!-- Edit Item Modal -->
+        <div class="modal fade" id="editItemModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Edit Packing Item</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="editItemForm">
+                            <input type="hidden" id="editItemId">
+                            <div class="mb-3">
+                                <label>Item Name</label>
+                                <input type="text" id="editItemName" class="form-control" required>
+                            </div>
+                            <div class="mb-3">
+                                <label>Category</label>
+                                <select id="editItemCat" class="form-select">
+                                    <option>Clothing</option>
+                                    <option>Documents</option>
+                                    <option>Electronics</option>
+                                    <option>Toiletries</option>
+                                    <option>Medical</option>
+                                    <option>Other</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label>Quantity</label>
+                                <input type="number" id="editItemQuantity" class="form-control" min="1">
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-primary" id="updateItemBtn">Update</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Update statistics function
+function updateStatistics() {
+    const checkboxes = document.querySelectorAll('.packing-checkbox');
+    const total = checkboxes.length;
+    const packed = Array.from(checkboxes).filter(cb => cb.checked).length;
+    const remaining = total - packed;
+    const percentage = total > 0 ? (packed / total * 100).toFixed(0) : 0;
+    
+    document.getElementById('totalItems').textContent = total;
+    document.getElementById('packedItems').textContent = packed;
+    document.getElementById('remainingItems').textContent = remaining;
+    
+    const progressBar = document.getElementById('packingProgress');
+    progressBar.style.width = percentage + '%';
+    progressBar.textContent = percentage + '%';
+    progressBar.setAttribute('aria-valuenow', percentage);
+    
+    // Change color based on progress
+    if (percentage >= 75) {
+        progressBar.className = 'progress-bar progress-bar-striped progress-bar-animated bg-success';
+    } else if (percentage >= 50) {
+        progressBar.className = 'progress-bar progress-bar-striped progress-bar-animated bg-info';
+    } else if (percentage >= 25) {
+        progressBar.className = 'progress-bar progress-bar-striped progress-bar-animated bg-warning';
+    } else {
+        progressBar.className = 'progress-bar progress-bar-striped progress-bar-animated bg-secondary';
+    }
+}
+
+// Add new item
+function addItem() {
+    const name = document.getElementById('newItemName').value.trim();
+    const category = document.getElementById('newItemCat').value;
+    const quantity = parseInt(document.getElementById('newItemQuantity').value);
+    
+    if (!name) {
+        alert('Please enter an item name');
+        return;
+    }
+    
+    fetch('/api/packing/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            trip_id: {{ trip.id }},
+            name: name,
+            category: category,
+            quantity: quantity
+        })
+    })
+    .then(response => {
+        if (!response.ok) throw new Error('Network response was not ok');
+        return response.json();
+    })
+    .then(() => location.reload())
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error adding item. Please try again.');
+    });
+}
+
+// Toggle item packed status
+function toggleItem(itemId, isPacked) {
+    fetch('/api/packing/' + itemId + '/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_packed: isPacked })
+    })
+    .then(response => {
+        if (!response.ok) throw new Error('Network response was not ok');
+        return response.json();
+    })
+    .then(() => location.reload())
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error updating item status');
+    });
+}
+
+// Delete item
+function deleteItem(itemId) {
+    if (confirm('Delete this item from your packing list?')) {
+        fetch('/api/packing/' + itemId, { method: 'DELETE' })
+            .then(response => {
+                if (!response.ok) throw new Error('Network response was not ok');
+                return response.json();
+            })
+            .then(() => location.reload())
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error deleting item');
+            });
+    }
+}
+
+// Update item
+function updateItem() {
+    const itemId = document.getElementById('editItemId').value;
+    const name = document.getElementById('editItemName').value.trim();
+    const category = document.getElementById('editItemCat').value;
+    const quantity = parseInt(document.getElementById('editItemQuantity').value);
+    
+    if (!name) {
+        alert('Please enter an item name');
+        return;
+    }
+    
+    fetch('/api/packing/' + itemId, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            name: name,
+            category: category,
+            quantity: quantity
+        })
+    })
+    .then(response => {
+        if (!response.ok) throw new Error('Network response was not ok');
+        return response.json();
+    })
+    .then(() => location.reload())
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error updating item');
+    });
+}
+
+// Clear all packed items
+function clearPackedItems() {
+    if (confirm('Remove all packed items from the list? This action cannot be undone.')) {
+        fetch('/api/packing/clear-packed', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ trip_id: {{ trip.id }} })
+        })
+        .then(response => {
+            if (!response.ok) throw new Error('Network response was not ok');
+            return response.json();
+        })
+        .then(() => location.reload())
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error clearing packed items');
+        });
+    }
+}
+
+// Filter items by category
+function filterItems(category) {
+    const items = document.querySelectorAll('.packing-item');
+    items.forEach(item => {
+        if (category === 'all') {
+            item.style.display = 'flex';
+        } else {
+            const badge = item.querySelector('.category-badge');
+            if (badge && badge.textContent === category) {
+                item.style.display = 'flex';
+            } else {
+                item.style.display = 'none';
+            }
+        }
+    });
+}
+
+// Event Listeners
+document.addEventListener('DOMContentLoaded', function() {
+    // Add item button
+    document.getElementById('addItemBtn')?.addEventListener('click', addItem);
+    
+    // Enter key in input field
+    document.getElementById('newItemName')?.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') addItem();
+    });
+    
+    // Checkbox events
+    document.querySelectorAll('.packing-checkbox').forEach(cb => {
+        cb.addEventListener('change', (e) => {
+            e.stopPropagation();
+            toggleItem(cb.dataset.id, cb.checked);
+        });
+    });
+    
+    // Delete buttons
+    document.querySelectorAll('.delete-item').forEach(btn => {
+        btn.addEventListener('click', () => deleteItem(btn.dataset.id));
+    });
+    
+    // Edit buttons
+    document.querySelectorAll('.edit-item').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.getElementById('editItemId').value = btn.dataset.id;
+            document.getElementById('editItemName').value = btn.dataset.name;
+            document.getElementById('editItemCat').value = btn.dataset.category;
+            document.getElementById('editItemQuantity').value = btn.dataset.quantity || 1;
+            new bootstrap.Modal(document.getElementById('editItemModal')).show();
+        });
+    });
+    
+    // Update button
+    document.getElementById('updateItemBtn')?.addEventListener('click', updateItem);
+    
+    // Clear packed button
+    document.getElementById('clearPackedBtn')?.addEventListener('click', clearPackedItems);
+    
+    // Filter buttons
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            // Update active state
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            filterItems(btn.dataset.category);
+        });
+    });
+    
+    // Update statistics
+    updateStatistics();
+});
+</script>
+{% endblock %}

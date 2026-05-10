@@ -1,0 +1,369 @@
+<!-- templates/notes.html -->
+
+{% extends "base.html" %}
+
+{% block title %}Trip Notes - {{ trip.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+
+    .notes-header {
+        background: linear-gradient(135deg, #4b6cb7, #182848);
+        color: white;
+        border-radius: 24px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .notes-header::before {
+        content: '';
+        position: absolute;
+        width: 250px;
+        height: 250px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.08);
+        top: -100px;
+        right: -80px;
+    }
+
+    .note-card {
+        border-radius: 20px;
+        border: none;
+        transition: 0.3s ease;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+    }
+
+    .note-card:hover {
+        transform: translateY(-4px);
+    }
+
+    .note-textarea {
+        border-radius: 16px;
+        border: 1px solid #dce4ec;
+        padding: 14px;
+        resize: none;
+    }
+
+    .note-textarea:focus {
+        border-color: #4b6cb7;
+        box-shadow: 0 0 0 4px rgba(75,108,183,0.1);
+    }
+
+    .note-item {
+        background: #f8fbff;
+        border-radius: 18px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        border-left: 5px solid #4b6cb7;
+    }
+
+    .note-date {
+        font-size: 0.85rem;
+        color: #6c757d;
+    }
+
+    .empty-notes {
+        padding: 3rem;
+        text-align: center;
+        color: #6c757d;
+    }
+
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="container py-4">
+
+    <!-- Header -->
+    <div class="notes-header">
+
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+
+            <div>
+                <h1 class="fw-bold mb-2">
+                    <i class="fas fa-book-open me-2"></i>
+                    Travel Notes
+                </h1>
+
+                <p class="mb-0 opacity-75">
+                    Capture memories, reminders, plans and experiences for your journey.
+                </p>
+            </div>
+
+            <a href="{{ url_for('edit_trip', trip_id=trip.id) }}"
+               class="btn btn-light rounded-pill px-4">
+
+                <i class="fas fa-arrow-left me-2"></i>
+                Back to Trip
+
+            </a>
+
+        </div>
+
+    </div>
+
+    <div class="row">
+
+        <!-- Add Note -->
+        <div class="col-lg-4 mb-4">
+
+            <div class="card note-card p-4">
+
+                <h4 class="mb-3">
+                    <i class="fas fa-pen me-2 text-primary"></i>
+                    Add Note
+                </h4>
+
+                <form id="noteForm">
+
+                    <div class="mb-3">
+
+                        <label class="form-label">
+                            Title
+                        </label>
+
+                        <input type="text"
+                               id="noteTitle"
+                               class="form-control rounded-4"
+                               placeholder="Eg. Paris Food Spots">
+
+                    </div>
+
+                    <div class="mb-3">
+
+                        <label class="form-label">
+                            Select Stop
+                        </label>
+
+                        <select id="noteStop"
+                                class="form-select rounded-4">
+
+                            <option value="">
+                                General Trip Note
+                            </option>
+
+                            {% for stop in stops %}
+                            <option value="{{ stop.id }}">
+                                {{ stop.city_name }}
+                            </option>
+                            {% endfor %}
+
+                        </select>
+
+                    </div>
+
+                    <div class="mb-3">
+
+                        <label class="form-label">
+                            Note
+                        </label>
+
+                        <textarea id="noteText"
+                                  rows="6"
+                                  class="form-control note-textarea"
+                                  placeholder="Write your thoughts, plans, reminders..."></textarea>
+
+                    </div>
+
+                    <button type="button"
+                            class="btn btn-primary w-100 rounded-pill py-2"
+                            id="saveNoteBtn">
+
+                        <i class="fas fa-save me-2"></i>
+                        Save Note
+
+                    </button>
+
+                </form>
+
+            </div>
+
+        </div>
+
+        <!-- Notes List -->
+        <div class="col-lg-8">
+
+            <div class="card note-card p-4">
+
+                <div class="d-flex justify-content-between align-items-center mb-4">
+
+                    <h4 class="mb-0">
+                        <i class="fas fa-note-sticky me-2 text-warning"></i>
+                        Your Notes
+                    </h4>
+
+                    <span class="badge bg-primary rounded-pill px-3 py-2">
+                        {{ notes|length }} Notes
+                    </span>
+
+                </div>
+
+                {% if notes %}
+
+                    {% for note in notes %}
+
+                    <div class="note-item">
+
+                        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+
+                            <div>
+
+                                <h5 class="mb-1">
+                                    {{ note.title or 'Untitled Note' }}
+                                </h5>
+
+                                <div class="note-date mb-2">
+
+                                    <i class="fas fa-calendar-alt me-1"></i>
+
+                                    {{ note.created_at }}
+
+                                    {% if note.city_name %}
+                                    •
+                                    <i class="fas fa-map-marker-alt ms-1 me-1"></i>
+                                    {{ note.city_name }}
+                                    {% endif %}
+
+                                </div>
+
+                            </div>
+
+                            <button class="btn btn-sm btn-outline-danger delete-note"
+                                    data-id="{{ note.id }}">
+
+                                <i class="fas fa-trash"></i>
+
+                            </button>
+
+                        </div>
+
+                        <p class="mb-0 mt-2">
+                            {{ note.note }}
+                        </p>
+
+                    </div>
+
+                    {% endfor %}
+
+                {% else %}
+
+                <div class="empty-notes">
+
+                    <i class="fas fa-book fa-3x mb-3"></i>
+
+                    <h5>No notes yet</h5>
+
+                    <p>
+                        Start documenting your travel plans and memories.
+                    </p>
+
+                </div>
+
+                {% endif %}
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+
+document.getElementById('saveNoteBtn')?.addEventListener('click', () => {
+
+    const title = document.getElementById('noteTitle').value;
+    const stopId = document.getElementById('noteStop').value;
+    const note = document.getElementById('noteText').value;
+
+    if(!note.trim()) {
+
+        alert('Please enter a note');
+
+        return;
+    }
+
+    fetch('/api/notes/add', {
+
+        method: 'POST',
+
+        headers: {
+            'Content-Type': 'application/json'
+        },
+
+        body: JSON.stringify({
+
+            trip_id: {{ trip.id }},
+            stop_id: stopId,
+            title: title,
+            note: note
+
+        })
+
+    })
+
+    .then(res => {
+
+        if(!res.ok)
+            throw new Error('Failed');
+
+        return res.json();
+
+    })
+
+    .then(() => location.reload())
+
+    .catch(err => {
+
+        console.error(err);
+
+        alert('Error saving note');
+
+    });
+
+});
+
+document.querySelectorAll('.delete-note').forEach(btn => {
+
+    btn.addEventListener('click', () => {
+
+        if(confirm('Delete this note?')) {
+
+            fetch('/api/notes/' + btn.dataset.id, {
+
+                method: 'DELETE'
+
+            })
+
+            .then(res => {
+
+                if(!res.ok)
+                    throw new Error('Failed');
+
+                return res.json();
+
+            })
+
+            .then(() => location.reload())
+
+            .catch(err => {
+
+                console.error(err);
+
+                alert('Error deleting note');
+
+            });
+
+        }
+
+    });
+
+});
+
+</script>
+
+{% endblock %}
